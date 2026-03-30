@@ -4,13 +4,71 @@
 
 **a. Initial design**
 
-- Briefly describe your initial UML design.
-- What classes did you include, and what responsibilities did you assign to each?
+My initial UML design uses four core classes: `Owner`, `Pet`, `Task`, and `Scheduler`.
+
+Three core user actions I prioritized:
+- Add and manage a pet profile (name, species, age).
+- Add and manage pet care tasks (feedings, walks, medications, appointments).
+- Generate and review today's prioritized schedule.
+
+Class responsibilities:
+- `Owner`: stores owner-level constraints (daily time budget, preferences) and owns a list of pets.
+- `Pet`: stores pet metadata and task list for that specific pet.
+- `Task`: stores task attributes such as duration, priority, due date, recurrence, and completion state.
+- `Scheduler`: collects pending tasks, sorts/prioritizes them, detects conflicts, and produces a daily plan with explanations.
+
+Mermaid UML draft:
+
+```mermaid
+classDiagram
+	class Owner {
+		+str name
+		+int daily_time_budget_minutes
+		+dict preferences
+		+list pets
+		+add_pet(pet)
+		+get_pet(pet_name)
+	}
+
+	class Pet {
+		+str name
+		+str species
+		+int age_years
+		+list tasks
+		+add_task(task)
+		+remove_task(task_title)
+	}
+
+	class Task {
+		+str title
+		+int duration_minutes
+		+str priority
+		+date due_date
+		+bool is_recurring
+		+int recurrence_days
+		+mark_complete()
+		+next_due_date()
+	}
+
+	class Scheduler {
+		+collect_pending_tasks()
+		+sort_tasks(tasks)
+		+detect_conflicts(scheduled_items)
+		+build_daily_plan(target_date)
+		+explain_plan(scheduled_items)
+	}
+
+	Owner "1" --> "*" Pet : owns
+	Pet "1" --> "*" Task : has
+	Scheduler --> Owner : uses
+	Scheduler --> Task : schedules
+```
 
 **b. Design changes**
 
-- Did your design change during implementation?
-- If yes, describe at least one change and why you made it.
+Yes. I refined the design by adding a `ScheduledItem` structure in code to represent a `Task` plus a concrete start time. This keeps planning output separate from raw task definitions and makes conflict detection cleaner.
+
+I also made `priority` a small enum in code instead of plain strings so the scheduler can sort reliably without repeated string checks.
 
 ---
 
