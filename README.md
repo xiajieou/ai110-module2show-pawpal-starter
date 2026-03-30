@@ -22,6 +22,16 @@ Your final app should:
 - Display the plan clearly (and ideally explain the reasoning)
 - Include tests for the most important scheduling behaviors
 
+## Smarter Scheduling
+
+PawPal+ now includes lightweight algorithmic logic to make planning more useful:
+
+- Sort tasks by preferred time so owners can quickly scan the day.
+- Filter tasks by pet and completion status for focused views.
+- Auto-roll recurring tasks forward (daily/weekly) after completion.
+- Detect exact start-time conflicts and overlap conflicts with warning messages.
+- Generate a prioritized daily plan within the owner's available time budget.
+
 ## Getting started
 
 ### Setup

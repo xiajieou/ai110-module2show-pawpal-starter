@@ -6,6 +6,7 @@ Scheduling algorithms and full validation are implemented in later phases.
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from enum import Enum
@@ -33,6 +34,7 @@ class Task:
     preferred_start: Optional[datetime] = None
     is_recurring: bool = False
     recurrence_days: int = 0
+    frequency: str = "once"
     notes: str = ""
     completed: bool = False
 
@@ -42,9 +44,39 @@ class Task:
 
     def next_due_date(self) -> Optional[date]:
         """Return the next due date for recurring tasks."""
-        if not self.is_recurring or self.due_date is None or self.recurrence_days <= 0:
+        if not self.is_recurring or self.due_date is None:
             return None
-        return self.due_date + timedelta(days=self.recurrence_days)
+        interval_days = self._recurrence_interval_days()
+        if interval_days <= 0:
+            return None
+        return self.due_date + timedelta(days=interval_days)
+
+    def _recurrence_interval_days(self) -> int:
+        """Return the recurrence interval in days from frequency or explicit value."""
+        if self.recurrence_days > 0:
+            return self.recurrence_days
+
+        normalized = self.frequency.strip().lower()
+        if normalized == "daily":
+            return 1
+        if normalized == "weekly":
+            return 7
+        return 0
+
+    def build_next_instance(self) -> Optional[Task]:
+        """Create the next recurring task instance when this one is complete."""
+        next_due = self.next_due_date()
+        if next_due is None:
+            return None
+
+        data = asdict(self)
+        data["due_date"] = next_due
+        data["completed"] = False
+        if self.preferred_start is not None:
+            data["preferred_start"] = self.preferred_start + timedelta(
+                days=self._recurrence_interval_days()
+            )
+        return Task(**data)
 
     def is_due_on(self, target_date: date) -> bool:
         """Return whether this task should be considered on a specific date."""
@@ -155,6 +187,72 @@ class Scheduler:
             )
 
         return sorted(tasks, key=sort_key)
+
+    def sort_by_time(self, tasks: List[Task]) -> List[Task]:
+        """Sort tasks by preferred start time (HH:MM), placing unscheduled tasks last."""
+        return sorted(
+            tasks,
+            key=lambda task: (
+                task.preferred_start is None,
+                task.preferred_start.strftime("%H:%M") if task.preferred_start else "99:99",
+                task.title.lower(),
+            ),
+        )
+
+    def filter_tasks(
+        self,
+        tasks: Optional[List[Task]] = None,
+        pet_name: Optional[str] = None,
+        completed: Optional[bool] = None,
+    ) -> List[Task]:
+        """Filter tasks by pet name and/or completion status."""
+        selected_tasks = tasks if tasks is not None else self.owner.get_all_tasks()
+        filtered_tasks: List[Task] = []
+
+        for task in selected_tasks:
+            if pet_name is not None and task.pet_name.lower() != pet_name.lower():
+                continue
+            if completed is not None and task.completed != completed:
+                continue
+            filtered_tasks.append(task)
+
+        return filtered_tasks
+
+    def mark_task_complete(self, task: Task) -> Optional[Task]:
+        """Mark a task complete and auto-create the next instance when recurring."""
+        task.mark_complete()
+        next_task = task.build_next_instance()
+        if next_task is None:
+            return None
+
+        pet = self.owner.get_pet(task.pet_name)
+        if pet is None:
+            return None
+
+        pet.add_task(next_task)
+        return next_task
+
+    def detect_time_conflicts(self, tasks: List[Task]) -> List[str]:
+        """Return warnings for tasks that share the exact same preferred start time."""
+        warnings: List[str] = []
+        sorted_tasks = sorted(
+            [task for task in tasks if task.preferred_start is not None],
+            key=lambda task: task.preferred_start,
+        )
+
+        for index in range(len(sorted_tasks) - 1):
+            current_task = sorted_tasks[index]
+            next_task = sorted_tasks[index + 1]
+
+            if current_task.preferred_start == next_task.preferred_start:
+                warnings.append(
+                    "Warning: "
+                    f"'{current_task.title}' ({current_task.pet_name}) and "
+                    f"'{next_task.title}' ({next_task.pet_name}) both start at "
+                    f"{current_task.preferred_start.strftime('%H:%M')}."
+                )
+
+        return warnings
 
     def detect_conflicts(self, scheduled_items: List[ScheduledItem]) -> List[str]:
         """Detect overlaps or incompatible tasks in a proposed schedule."""

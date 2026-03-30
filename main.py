@@ -22,6 +22,32 @@ def format_schedule(scheduler: Scheduler, schedule: List[ScheduledItem]) -> None
     print("\n" + scheduler.explain_plan(schedule))
 
 
+def print_task_list(header: str, tasks: List[Task]) -> None:
+    """Print a simple, readable task list for CLI verification."""
+    print(f"\n=== {header} ===")
+    if not tasks:
+        print("No tasks found.")
+        return
+
+    for index, task in enumerate(tasks, start=1):
+        time_text = task.preferred_start.strftime("%H:%M") if task.preferred_start else "--:--"
+        print(
+            f"{index}. {time_text} | {task.pet_name} | {task.title} | "
+            f"completed={task.completed}"
+        )
+
+
+def print_warnings(warnings: List[str]) -> None:
+    """Print warning lines returned by conflict detection."""
+    if not warnings:
+        print("\nNo time conflicts detected.")
+        return
+
+    print("\n=== Conflict Warnings ===")
+    for warning in warnings:
+        print(warning)
+
+
 def main() -> None:
     owner = Owner(
         name="Jordan",
@@ -37,17 +63,7 @@ def main() -> None:
 
     today = date.today()
 
-    mochi.add_task(
-        Task(
-            title="Morning Walk",
-            duration_minutes=25,
-            priority=Priority.HIGH,
-            pet_name="Mochi",
-            task_type="walk",
-            due_date=today,
-            preferred_start=datetime.combine(today, datetime.min.time()).replace(hour=7),
-        )
-    )
+    # Added out of chronological order on purpose to validate sort_by_time.
     mochi.add_task(
         Task(
             title="Evening Medication",
@@ -57,6 +73,17 @@ def main() -> None:
             task_type="medication",
             due_date=today,
             preferred_start=datetime.combine(today, datetime.min.time()).replace(hour=18),
+        )
+    )
+    mochi.add_task(
+        Task(
+            title="Morning Walk",
+            duration_minutes=25,
+            priority=Priority.HIGH,
+            pet_name="Mochi",
+            task_type="walk",
+            due_date=today,
+            preferred_start=datetime.combine(today, datetime.min.time()).replace(hour=7),
         )
     )
     luna.add_task(
@@ -70,10 +97,48 @@ def main() -> None:
             preferred_start=datetime.combine(today, datetime.min.time()).replace(hour=8),
         )
     )
+    luna.add_task(
+        Task(
+            title="Breakfast Feeding",
+            duration_minutes=10,
+            priority=Priority.MEDIUM,
+            pet_name="Luna",
+            task_type="feeding",
+            due_date=today,
+            preferred_start=datetime.combine(today, datetime.min.time()).replace(hour=7),
+            is_recurring=True,
+            frequency="daily",
+        )
+    )
 
     scheduler = Scheduler(owner)
+
+    print_task_list("All Tasks (Unsorted)", owner.get_all_tasks())
+
+    sorted_by_time = scheduler.sort_by_time(owner.get_all_tasks())
+    print_task_list("Tasks Sorted by Time", sorted_by_time)
+
+    mochi_pending = scheduler.filter_tasks(pet_name="Mochi", completed=False)
+    print_task_list("Filtered: Mochi Pending Tasks", mochi_pending)
+
+    recurring_task = next(
+        task for task in owner.get_all_tasks() if task.title == "Breakfast Feeding"
+    )
+    next_instance = scheduler.mark_task_complete(recurring_task)
+    if next_instance is not None:
+        print(
+            "\nRecurring task rollover created: "
+            f"{next_instance.title} due {next_instance.due_date.isoformat()}"
+        )
+
+    exact_time_warnings = scheduler.detect_time_conflicts(owner.get_all_tasks())
+    print_warnings(exact_time_warnings)
+
     schedule = scheduler.build_daily_plan(today)
     format_schedule(scheduler, schedule)
+
+    overlap_warnings = scheduler.detect_conflicts(schedule)
+    print_warnings(overlap_warnings)
 
 
 if __name__ == "__main__":

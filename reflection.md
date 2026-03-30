@@ -81,8 +81,9 @@ I also made `priority` a small enum in code instead of plain strings so the sche
 
 **b. Tradeoffs**
 
-- Describe one tradeoff your scheduler makes.
-- Why is that tradeoff reasonable for this scenario?
+One tradeoff is that conflict detection is intentionally lightweight: it warns when tasks share the same preferred start time and when scheduled items overlap, but it does not run a full optimization search to rearrange every task perfectly.
+
+This is reasonable for the current project scope because it keeps the scheduling logic understandable and fast while still giving the user actionable warnings about problematic timing.
 
 ---
 
