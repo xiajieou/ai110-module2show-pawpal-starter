@@ -46,6 +46,23 @@ class Task:
             return None
         return self.due_date + timedelta(days=self.recurrence_days)
 
+    def is_due_on(self, target_date: date) -> bool:
+        """Return whether this task should be considered on a specific date."""
+        if self.due_date is None:
+            return True
+
+        if not self.is_recurring:
+            return self.due_date <= target_date
+
+        if self.recurrence_days <= 0:
+            return self.due_date <= target_date
+
+        if target_date < self.due_date:
+            return False
+
+        delta_days = (target_date - self.due_date).days
+        return delta_days % self.recurrence_days == 0
+
 
 @dataclass
 class Pet:
@@ -89,6 +106,13 @@ class Owner:
                 return pet
         return None
 
+    def get_all_tasks(self) -> List[Task]:
+        """Return all tasks across every pet owned by this owner."""
+        tasks: List[Task] = []
+        for pet in self.pets:
+            tasks.extend(pet.tasks)
+        return tasks
+
 
 @dataclass
 class ScheduledItem:
@@ -106,25 +130,97 @@ class Scheduler:
 
     def collect_pending_tasks(self) -> List[Task]:
         """Collect all incomplete tasks across all pets."""
-        pending_tasks: List[Task] = []
-        for pet in self.owner.pets:
-            for task in pet.tasks:
-                if not task.completed:
-                    pending_tasks.append(task)
-        return pending_tasks
+        return [task for task in self.owner.get_all_tasks() if not task.completed]
 
     def sort_tasks(self, tasks: List[Task]) -> List[Task]:
         """Sort tasks by priority and due date for scheduling."""
-        raise NotImplementedError
+        priority_order = {
+            Priority.HIGH: 0,
+            Priority.MEDIUM: 1,
+            Priority.LOW: 2,
+        }
+
+        def sort_key(task: Task) -> tuple[int, date, datetime, int]:
+            due_value = task.due_date if task.due_date is not None else date.max
+            preferred_value = (
+                task.preferred_start
+                if task.preferred_start is not None
+                else datetime.max.replace(tzinfo=None)
+            )
+            return (
+                priority_order.get(task.priority, 3),
+                due_value,
+                preferred_value,
+                task.duration_minutes,
+            )
+
+        return sorted(tasks, key=sort_key)
 
     def detect_conflicts(self, scheduled_items: List[ScheduledItem]) -> List[str]:
         """Detect overlaps or incompatible tasks in a proposed schedule."""
-        raise NotImplementedError
+        conflicts: List[str] = []
+        ordered_items = sorted(scheduled_items, key=lambda item: item.start_time)
+
+        for index in range(len(ordered_items) - 1):
+            current_item = ordered_items[index]
+            next_item = ordered_items[index + 1]
+            current_end = current_item.start_time + timedelta(
+                minutes=current_item.task.duration_minutes
+            )
+
+            if current_end > next_item.start_time:
+                conflicts.append(
+                    "Conflict: "
+                    f"'{current_item.task.title}' for {current_item.task.pet_name} overlaps with "
+                    f"'{next_item.task.title}' for {next_item.task.pet_name}."
+                )
+
+        return conflicts
+
+    def _day_start(self, target_date: date) -> datetime:
+        """Return the default start time for plan generation."""
+        start_hour = int(self.owner.preferences.get("day_start_hour", "8"))
+        start_hour = max(0, min(start_hour, 23))
+        return datetime.combine(target_date, datetime.min.time()).replace(hour=start_hour)
 
     def build_daily_plan(self, target_date: date) -> List[ScheduledItem]:
         """Select and order tasks for a specific day."""
-        raise NotImplementedError
+        pending_tasks = self.collect_pending_tasks()
+        due_tasks = [task for task in pending_tasks if task.is_due_on(target_date)]
+        sorted_tasks = self.sort_tasks(due_tasks)
+
+        scheduled_items: List[ScheduledItem] = []
+        minutes_used = 0
+        current_time = self._day_start(target_date)
+
+        for task in sorted_tasks:
+            if minutes_used + task.duration_minutes > self.owner.daily_time_budget_minutes:
+                continue
+
+            start_time = current_time
+            if (
+                task.preferred_start is not None
+                and task.preferred_start.date() == target_date
+                and task.preferred_start > current_time
+            ):
+                start_time = task.preferred_start
+
+            scheduled_items.append(ScheduledItem(task=task, start_time=start_time))
+            minutes_used += task.duration_minutes
+            current_time = start_time + timedelta(minutes=task.duration_minutes)
+
+        return scheduled_items
 
     def explain_plan(self, scheduled_items: List[ScheduledItem]) -> str:
         """Produce human-readable reasoning for schedule decisions."""
-        raise NotImplementedError
+        if not scheduled_items:
+            return "No tasks scheduled today."
+
+        lines: List[str] = ["Today's Schedule Rationale:"]
+        for item in scheduled_items:
+            lines.append(
+                f"- {item.start_time.strftime('%H:%M')} | {item.task.pet_name}: {item.task.title} "
+                f"({item.task.duration_minutes} min, {item.task.priority.value} priority)"
+            )
+
+        return "\n".join(lines)
