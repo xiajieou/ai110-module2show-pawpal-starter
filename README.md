@@ -32,6 +32,22 @@ PawPal+ now includes lightweight algorithmic logic to make planning more useful:
 - Detect exact start-time conflicts and overlap conflicts with warning messages.
 - Generate a prioritized daily plan within the owner's available time budget.
 
+## Features
+
+- Owner, pet, and task management using Python OOP classes.
+- Scheduler-driven daily planning constrained by time budget and priorities.
+- Time-based task sorting for readable daily order.
+- Task filtering by pet and completion status.
+- Recurring task rollover (daily/weekly) when tasks are completed.
+- Conflict detection for exact matching start times and schedule overlaps.
+- Streamlit UI connected to backend logic with persistent session state.
+
+## 📸 Demo
+
+<a href="/course_images/ai110/pawpal_final_app.png" target="_blank"><img src='/course_images/ai110/pawpal_final_app.png' title='PawPal App' width='' alt='PawPal App' class='center-block' /></a>
+
+Final UML artifact: `uml_final.png`
+
 ## Getting started
 
 ### Setup
