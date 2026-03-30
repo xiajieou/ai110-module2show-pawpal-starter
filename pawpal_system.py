@@ -86,14 +86,15 @@ class Task:
         if not self.is_recurring:
             return self.due_date <= target_date
 
-        if self.recurrence_days <= 0:
+        interval_days = self._recurrence_interval_days()
+        if interval_days <= 0:
             return self.due_date <= target_date
 
         if target_date < self.due_date:
             return False
 
         delta_days = (target_date - self.due_date).days
-        return delta_days % self.recurrence_days == 0
+        return delta_days % interval_days == 0
 
 
 @dataclass

@@ -134,3 +134,27 @@ def test_detect_time_conflicts_warns_on_exact_time_match() -> None:
     warnings = scheduler.detect_time_conflicts([task_one, task_two])
 
     assert warnings
+
+
+def test_build_daily_plan_returns_empty_for_pet_with_no_tasks() -> None:
+    owner = Owner(name="Jordan", daily_time_budget_minutes=120)
+    owner.add_pet(Pet(name="Mochi", species="dog", age_years=4))
+    scheduler = Scheduler(owner)
+
+    assert scheduler.build_daily_plan(date.today()) == []
+
+
+def test_weekly_recurrence_due_only_on_matching_day() -> None:
+    task = Task(
+        title="Weekly Grooming",
+        duration_minutes=30,
+        priority=Priority.MEDIUM,
+        pet_name="Mochi",
+        task_type="grooming",
+        due_date=date(2026, 3, 23),
+        is_recurring=True,
+        frequency="weekly",
+    )
+
+    assert task.is_due_on(date(2026, 3, 30)) is True
+    assert task.is_due_on(date(2026, 3, 31)) is False
